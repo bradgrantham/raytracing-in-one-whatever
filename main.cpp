@@ -2,6 +2,8 @@
 #include <cstdio>
 #include <cstdint>
 
+#include "vectormath.h"
+
 int main(int argc, char **argv)
 {
     int imageWidth = 512;
@@ -16,10 +18,7 @@ int main(int argc, char **argv)
             float u = i * 1.0f / (imageWidth - 1);
             float v = j * 1.0f / (imageHeight - 1);
 
-            float color[3];
-            color[0] = u;
-            color[1] = v;
-            color[2] = 0.25f;
+            vec3 color(u, v, .25f);
 
             uint8_t rgb8[3];
             rgb8[0] = static_cast<int>(color[0] * 255.999);
