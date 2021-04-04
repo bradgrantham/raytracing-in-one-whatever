@@ -4,6 +4,15 @@
 
 #include "vectormath.h"
 
+void write_pixel(FILE *fp, const vec3f& color)
+{
+    uint8_t rgb8[3];
+    rgb8[0] = static_cast<int>(color[0] * 255.999);
+    rgb8[1] = static_cast<int>(color[1] * 255.999);
+    rgb8[2] = static_cast<int>(color[2] * 255.999);
+    fwrite(rgb8, 3, 1, fp);
+}
+
 int main(int argc, char **argv)
 {
     int imageWidth = 512;
@@ -18,16 +27,9 @@ int main(int argc, char **argv)
             float u = i * 1.0f / (imageWidth - 1);
             float v = j * 1.0f / (imageHeight - 1);
 
-            vec3 color(u, v, .25f);
-
-            uint8_t rgb8[3];
-            rgb8[0] = static_cast<int>(color[0] * 255.999);
-            rgb8[1] = static_cast<int>(color[1] * 255.999);
-            rgb8[2] = static_cast<int>(color[2] * 255.999);
-
-            fwrite(rgb8, 3, 1, fp);
+            vec3f color(u, v, .25f);
+            write_pixel(fp, color);
         }
     }
     std::cout << "\n";
 }
-
