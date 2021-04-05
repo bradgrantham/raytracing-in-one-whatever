@@ -77,73 +77,80 @@ V vec_reflect(const V& i, const V& n)
     return tmp;
 }
 
-#define OPS(V) \
-    inline bool operator==(const V& v0, const V& v1) \
-    { \
-        V tmp; \
-        for(int i = 0; i < V::dimension(); i++) \
-	    if(v0[i] != v1[i]) \
-		return false; \
-        return true; \
-    } \
-     \
-    inline V operator+(const V& v0, const V& v1) \
-    { \
-        V tmp; \
-        for(int i = 0; i < V::dimension(); i++) tmp[i] = v0[i] + v1[i]; \
-        return tmp; \
-    } \
-     \
-    inline V operator-(const V& v0, const V& v1) \
-    { \
-        V tmp; \
-        for(int i = 0; i < V::dimension(); i++) tmp[i] = v0[i] - v1[i]; \
-        return tmp; \
-    } \
-     \
-    inline V operator-(const V& v) \
-    { \
-        V tmp; \
-        for(int i = 0; i < V::dimension(); i++) tmp[i] = -v[i]; \
-        return tmp; \
-    } \
-     \
-    inline V operator*(float w, const V& v)  \
-    { \
-        V tmp; \
-        for(int i = 0; i < V::dimension(); i++) tmp[i] = v[i] * w; \
-        return tmp; \
-    } \
-     \
-    inline V operator/(float w, const V& v) \
-    { \
-        V tmp; \
-        for(int i = 0; i < V::dimension(); i++) tmp[i] = v[i] / w; \
-        return tmp; \
-    } \
-     \
-    inline V operator*(const V& v, float w) \
-    { \
-        V tmp; \
-        for(int i = 0; i < V::dimension(); i++) tmp[i] = v[i] * w; \
-        return tmp; \
-    } \
-     \
-    inline V operator/(const V& v, float w) \
-    { \
-        V tmp; \
-        for(int i = 0; i < V::dimension(); i++) tmp[i] = v[i] / w; \
-        return tmp; \
-    } \
-     \
-    /* Would be nice if we could just define T to be V::comp_type.  Why didn't that work? */ \
-    inline V operator*(const V& v0, const V& v1) \
-    { \
-        V tmp; \
-        for(int i = 0; i < V::dimension(); i++) tmp[i] = v0[i] * v1[i]; \
-        return tmp; \
-    } \
-     \
+template <class V>
+bool operator==(const V& v0, const V& v1)
+{
+    V tmp;
+    for(int i = 0; i < V::dimension(); i++)
+        if(v0[i] != v1[i])
+            return false;
+    return true;
+}
+    
+template <class V>
+V operator+(const V& v0, const V& v1)
+{
+    V tmp;
+    for(int i = 0; i < V::dimension(); i++) tmp[i] = v0[i] + v1[i];
+    return tmp;
+}
+
+template <class V>
+V operator-(const V& v0, const V& v1)
+{
+    V tmp;
+    for(int i = 0; i < V::dimension(); i++) tmp[i] = v0[i] - v1[i];
+    return tmp;
+}
+
+template <class V>
+V operator-(const V& v)
+{
+    V tmp;
+    for(int i = 0; i < V::dimension(); i++) tmp[i] = -v[i];
+    return tmp;
+}
+
+template <class V>
+V operator*(float w, const V& v) 
+{
+    V tmp;
+    for(int i = 0; i < V::dimension(); i++) tmp[i] = v[i] * w;
+    return tmp;
+}
+
+template <class V>
+V operator/(float w, const V& v)
+{
+    V tmp;
+    for(int i = 0; i < V::dimension(); i++) tmp[i] = v[i] / w;
+    return tmp;
+}
+
+template <class V>
+V operator*(const V& v, float w)
+{
+    V tmp;
+    for(int i = 0; i < V::dimension(); i++) tmp[i] = v[i] * w;
+    return tmp;
+}
+
+template <class V>
+V operator/(const V& v, float w)
+{
+    V tmp;
+    for(int i = 0; i < V::dimension(); i++) tmp[i] = v[i] / w;
+    return tmp;
+}
+
+/* Would be nice if we could just define T to be V::comp_type.  Why didn't that work? */
+template <class V>
+V operator*(const V& v0, const V& v1)
+{
+    V tmp;
+    for(int i = 0; i < V::dimension(); i++) tmp[i] = v0[i] * v1[i];
+    return tmp;
+}
 
 struct vec2f
 {
@@ -240,7 +247,6 @@ struct vec2f
 	return *this;
     }
 };
-OPS(vec2f);
 
 struct vec3f
 {
@@ -370,7 +376,6 @@ struct vec3f
 	return *this;
     }
 };
-OPS(vec3f);
 
  vec3f vec_cross(const vec3f& v0, const vec3f& v1)
 {
@@ -494,7 +499,6 @@ struct vec4f
 	return *this;
     }
 };
-OPS(vec4f);
 
 //
 // With your left hand up, fingers up, palm facing away, thumb facing to
