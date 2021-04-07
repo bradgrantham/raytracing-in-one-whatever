@@ -1,9 +1,5 @@
-/*
- * $Header: /home/grantham/cvsroot/projects/modules/singles/linmath.h,v 1.4 2007/02/01 05:57:01 grantham Exp $
- */
-
-#ifndef __LINMATH_H__
-#define __LINMATH_H__
+#ifndef __VECTORMATH_H__
+#define __VECTORMATH_H__
 
 #include <math.h>
 // #include <values.h>
@@ -11,10 +7,9 @@
 
 /*
 Style to do:
-    const input
-    const functions
+    vec{234}{i,f} should be specialized from std::array?
     size_t, not int, in arrays?
-    inline
+    run through clang-format to fix single-line, no-brace code
 */
 
 template <class V>
@@ -143,7 +138,6 @@ V operator/(const V& v, float w)
     return tmp;
 }
 
-/* Would be nice if we could just define T to be V::comp_type.  Why didn't that work? */
 template <class V>
 V operator*(const V& v0, const V& v1)
 {
@@ -156,7 +150,7 @@ struct vec2f
 {
     float m_v[2];
     float &x, &y;
-    static int dimension() { return 2; }
+    static constexpr int dimension() { return 2; }
     typedef float comp_type;
 
     vec2f(void) :
@@ -209,6 +203,8 @@ struct vec2f
         { set(v); }
 
     operator const float*() const { return m_v; }
+    operator float*() { return m_v; }
+
     float& operator[] (int i)
         { return m_v[i]; }
 
@@ -252,25 +248,25 @@ struct vec3f
 {
     float m_v[3];
     float &x, &y, &z;
-    static int dimension() { return 3; }
+    static constexpr int dimension() { return 3; }
     typedef float comp_type;
 
     vec3f(void) :
         x(m_v[0]),
         y(m_v[1]),
         z(m_v[2])
-     { }
+    { }
 
-     void set(float x, float y, float z)
+    void set(float x, float y, float z)
         { m_v[0] = x; m_v[1] = y; m_v[2] = z;}
 
-     vec3f(float x, float y, float z) :
+    vec3f(float x, float y, float z) :
         x(m_v[0]),
         y(m_v[1]),
         z(m_v[2])
         { set(x, y, z); }
 
-     vec3f cross(const vec3f& v1) {
+    vec3f cross(const vec3f& v1) {
 	vec3f tmp;
 	tmp[0] = m_v[1] * v1[2] - m_v[2] * v1[1];
 	tmp[1] = m_v[2] * v1[0] - m_v[0] * v1[2];
@@ -279,7 +275,7 @@ struct vec3f
 	return *this;
     }
 
-     vec3f(float v) :
+    vec3f(float v) :
         x(m_v[0]),
         y(m_v[1]),
         z(m_v[2])
@@ -287,7 +283,7 @@ struct vec3f
 	for(int i = 0; i < 3; i++) m_v[i] = v;
     }
 
-     vec3f(const float *v) :
+    vec3f(const float *v) :
         x(m_v[0]),
         y(m_v[1]),
         z(m_v[2])
@@ -295,7 +291,7 @@ struct vec3f
 	for(int i = 0; i < 3; i++) m_v[i] = v[i];
     }
 
-     vec3f(const vec3f &v) :  
+    vec3f(const vec3f &v) :  
         x(m_v[0]),
         y(m_v[1]),
         z(m_v[2])
@@ -303,81 +299,81 @@ struct vec3f
 	for(int i = 0; i < 3; i++) m_v[i] = v[i];
     }
 
-     vec3f &operator=(const vec3f& v) {
+    vec3f &operator=(const vec3f& v) {
 	for(int i = 0; i < 3; i++) m_v[i] = v[i];
 	return *this;
     }
 
-     vec3f &operator=(float v) {
+    vec3f &operator=(float v) {
 	for(int i = 0; i < 3; i++) m_v[i] = v;
 	return *this;
     }
 
-     vec3f(float *v) : 
+    vec3f(float *v) : 
         x(m_v[0]),
         y(m_v[1]),
         z(m_v[2])
     { set(v); }
 
-     float& operator[] (int i)
+    operator const float*() const { return m_v; }
+    operator float*() { return m_v; }
+
+    float& operator[] (int i)
         { return m_v[i]; }
 
-     const float& operator[] (int i) const
+    const float& operator[] (int i) const
         { return m_v[i]; }
 
-     operator const float*() const { return m_v; }
-     operator float*() { return m_v; }
-
-     void clear() { 
+    void clear() { 
 	for(int i = 0; i < 3; i++) m_v[i] = 0;
     }
 
-     void set(const float *v)
+    void set(const float *v)
 	{ for(int i = 0; i < 3; i++) m_v[i] = v[i]; }
 
-     float length() const {
+    float length() const {
 	float sum = 0;
 	for(int i = 0; i < 3; i++) sum += m_v[i] * m_v[i];
 	return (float)sqrtf((double)sum);
     }
 
-     vec3f& normalize() {
+    vec3f& normalize() {
 	*this = vec_normalize(*this);
 	return *this;
     }
 
-     vec3f operator*=(float w) {
+    vec3f operator*=(float w) {
 	for(int i = 0; i < 3; i++) m_v[i] *= w;
 	return *this;
     }
 
-     vec3f operator/=(float w) {
+    vec3f operator/=(float w) {
 	for(int i = 0; i < 3; i++) m_v[i] /= w;
 	return *this;
     }
 
-     vec3f operator+=(const vec3f& v) {
+    vec3f operator+=(const vec3f& v) {
 	for(int i = 0; i < 3; i++) m_v[i] += v[i];
 	return *this;
     }
 
-     vec3f operator-=(const vec3f& v) {
+    vec3f operator-=(const vec3f& v) {
 	for(int i = 0; i < 3; i++) m_v[i] -= v[i];
 	return *this;
     }
 
-     vec3f operator*=(const vec3f& v) {
+    vec3f operator*=(const vec3f& v) {
 	for(int i = 0; i < 3; i++) m_v[i] *= v[i];
 	return *this;
     }
 
-     vec3f operator/=(const vec3f& v) {
+    vec3f operator/=(const vec3f& v) {
 	for(int i = 0; i < 3; i++) m_v[i] /= v[i];
 	return *this;
     }
 };
 
- vec3f vec_cross(const vec3f& v0, const vec3f& v1)
+vec3f vec_cross(const vec3f& v0, const vec3f& v1)
 {
     vec3f tmp;
     tmp[0] = v0[1] * v1[2] - v0[2] * v1[1];
@@ -390,7 +386,7 @@ struct vec4f
 {
     float m_v[4];
     float &x, &y, &z, &w;
-     static int dimension() { return 4; }
+    static constexpr int dimension() { return 4; }
     typedef float comp_type;
 
     vec4f(void) :
@@ -421,7 +417,7 @@ struct vec4f
 	for(int i = 0; i < 4; i++) m_v[i] = v;
     }
 
-     vec4f(const float *v) :
+    vec4f(const float *v) :
         x(m_v[0]),
         y(m_v[1]),
         z(m_v[2]),
@@ -430,7 +426,7 @@ struct vec4f
 	for(int i = 0; i < 4; i++) m_v[i] = v[i];
     }
 
-     vec4f(const vec4f &v) :
+    vec4f(const vec4f &v) :
         x(m_v[0]),
         y(m_v[1]),
         z(m_v[2]),
@@ -439,12 +435,12 @@ struct vec4f
 	for(int i = 0; i < 4; i++) m_v[i] = v[i];
     }
 
-     vec4f &operator=(const vec4f& v) {
+    vec4f &operator=(const vec4f& v) {
 	for(int i = 0; i < 4; i++) m_v[i] = v[i];
 	return *this;
     }
 
-     vec4f(float *v) :
+    vec4f(float *v) :
         x(m_v[0]),
         y(m_v[1]),
         z(m_v[2]),
@@ -453,48 +449,49 @@ struct vec4f
         set(v);
         }
 
-     float& operator[] (int i)
+    operator const float*() const { return m_v; }
+    operator float*() { return m_v; }
+
+    float& operator[] (int i)
         { return m_v[i]; }
 
-     operator const float*() const { return m_v; }
-
-     const float& operator[] (int i) const
+    const float& operator[] (int i) const
         { return m_v[i]; }
 
-     void clear() { 
+    void clear() { 
 	for(int i = 0; i < 4; i++) m_v[i] = 0;
     }
 
-     void set(const float *v)
+    void set(const float *v)
 	{ for(int i = 0; i < 4; i++) m_v[i] = v[i]; }
 
-     float length() const {
+    float length() const {
 	float sum = 0;
 	for(int i = 0; i < 4; i++) sum += m_v[i] * m_v[i];
 	return (float)sqrtf((double)sum);
     }
 
-     vec4f& normalize() {
+    vec4f& normalize() {
 	*this = vec_normalize(*this);
 	return *this;
     }
 
-     vec4f operator*=(float w) {
+    vec4f operator*=(float w) {
 	for(int i = 0; i < 4; i++) m_v[i] *= w;
 	return *this;
     }
 
-     vec4f operator/=(float w) {
+    vec4f operator/=(float w) {
 	for(int i = 0; i < 4; i++) m_v[i] /= w;
 	return *this;
     }
 
-     vec4f operator+=(const vec4f& v) {
+    vec4f operator+=(const vec4f& v) {
 	for(int i = 0; i < 4; i++) m_v[i] += v[i];
 	return *this;
     }
 
-     vec4f operator-=(const vec4f& v) {
+    vec4f operator-=(const vec4f& v) {
 	for(int i = 0; i < 4; i++) m_v[i] -= v[i];
 	return *this;
     }
@@ -523,13 +520,13 @@ inline vec4f make_plane(const vec3f& v0, const vec3f& v1, const vec3f& v2)
 
 struct rot4f : public vec4f
 {
-    inline void set_axis(float x, float y, float z) {
+    void set_axis(float x, float y, float z) {
 	m_v[1] = x;
 	m_v[2] = y;
 	m_v[3] = z;
     }
 
-    inline void set_axis(vec3f &axis) {
+    void set_axis(vec3f &axis) {
 	m_v[1] = axis[0];
 	m_v[2] = axis[1];
 	m_v[3] = axis[2];
@@ -540,11 +537,10 @@ struct rot4f : public vec4f
 
 rot4f operator*(const rot4f& r1, const rot4f& r2);
 
-
 struct mat4f
 {
     float m_v[16];
-    inline static int dimension() { return 16; }
+    static constexpr int dimension() { return 16; }
     typedef float comp_type;
     static mat4f identity;
 
@@ -563,7 +559,7 @@ struct mat4f
 
     // mat4f::mult_nm does not perform inverse transpose - just multiplies with
     //     v[3] = 0
-    inline vec3f mult_nm(vec3f &in) {
+    vec3f mult_nm(vec3f &in) {
 	int i;
 	vec4f t;
 
@@ -579,7 +575,7 @@ struct mat4f
 	return vec3f(t[0], t[1], t[2]);
     }
 
-    inline mat4f& transpose(mat4f& in) {
+    mat4f& transpose(mat4f& in) {
 	mat4f t;
 	int i, j;
 
@@ -591,7 +587,7 @@ struct mat4f
 	return *this;
     }
 
-    inline float determinant() const {
+    float determinant() const {
 	return (m_v[0] * m_v[5] - m_v[1] * m_v[4]) *
 	    (m_v[10] * m_v[15] - m_v[11] * m_v[14]) + 
 	    (m_v[2] * m_v[4] - m_v[0] * m_v[6]) *
@@ -609,7 +605,7 @@ struct mat4f
     bool invert(const mat4f& in, bool singular_fail = true);
     bool invert() { return invert(*this); }
 
-    static inline mat4f translation(float x, float y, float z) {
+    static mat4f translation(float x, float y, float z) {
 	mat4f m(identity);
 	m[12] = x;
 	m[13] = y;
@@ -618,7 +614,7 @@ struct mat4f
 	return m;
     }
 
-    static inline mat4f scale(float x, float y, float z) {
+    static mat4f scale(float x, float y, float z) {
 	mat4f m(identity);
 	m[0] = x;
 	m[5] = y;
@@ -627,7 +623,7 @@ struct mat4f
 	return m;
     }
 
-    static inline mat4f rotation(float a, float x, float y, float z) {
+    static mat4f rotation(float a, float x, float y, float z) {
 	mat4f m;
 	float c, s, t;
 
@@ -655,13 +651,13 @@ struct mat4f
 	return m;
     }
 
-    inline mat4f(const rot4f& r) {
+    mat4f(const rot4f& r) {
 	(*this) = rotation(r[0], r[1], r[2], r[3]);
     }
 
     void calc_rot4f(rot4f *out) const;
 
-    inline mat4f& mult(mat4f& m1, mat4f &m2) {
+    mat4f& mult(mat4f& m1, mat4f &m2) {
 	mat4f t;
 	int i, j;
 
@@ -676,36 +672,36 @@ struct mat4f
 	return *this;
     }
 
-    inline mat4f(const float *v) {
+    mat4f(const float *v) {
 	for(int i = 0; i < 16; i++) m_v[i] = v[i];
     }
 
-    inline mat4f(const mat4f &v) {
+    mat4f(const mat4f &v) {
 	for(int i = 0; i < 16; i++) m_v[i] = v[i];
     }
 
-    inline mat4f &operator=(const mat4f& v) {
+    mat4f &operator=(const mat4f& v) {
 	for(int i = 0; i < 16; i++) m_v[i] = v[i];
 	return *this;
     }
 
-    inline mat4f(float *v)
+    mat4f(float *v)
         { set(v); }
 
-    inline float& operator[] (int i)
+    float& operator[] (int i)
         { return m_v[i]; }
 
-    inline const float& operator[] (int i) const
+    const float& operator[] (int i) const
         { return m_v[i]; }
 
-    inline void clear() { 
+    void clear() { 
 	for(int i = 0; i < 16; i++) m_v[i] = 0;
     }
 
-    inline void set(const float *v)
+    void set(const float *v)
 	{ for(int i = 0; i < 16; i++) m_v[i] = v[i]; }
 
-    inline void store(float *v)
+    void store(float *v)
 	{ for(int i = 0; i < 16; i++) v[i] = m_v[i]; }
 };
 
@@ -786,7 +782,7 @@ struct ray
     vec3f m_origin;
     vec3f m_direction;
     vec3f m_recipdir;
-    inline void classify() {
+    void classify() {
 	m_recipdir[0] = 1.0f / m_direction[0];
 	m_recipdir[1] = 1.0f / m_direction[1];
 	m_recipdir[2] = 1.0f / m_direction[2];
@@ -795,7 +791,7 @@ struct ray
     ray(const segment &s) : m_origin(s.m_v0), m_direction(s.m_v1 - s.m_v0) {classify();}
     ray() {};
     float length() const { return m_direction.length(); }
-    inline float at(int axis, float plane) const {
+    float at(int axis, float plane) const {
 	if(m_direction[axis] > -.00001f && m_direction[axis] < 0.0f)
 	    return -FLT_MAX;
 	if(m_direction[axis] >= 0.0f && m_direction[axis] < 0.00001f)
@@ -851,35 +847,4 @@ inline void transform_ray(vec3f* origin, vec3f* direction, const mat4f& m)
     *direction = newdirection;
 }
 
-/*
-vec template operations
-    set from const T*
-    clear
-    operator T*
-    operator=(const T*)
-    operator=(const vec&)
-    vec operator*(const vec& v1, const vec& v2)
-        and +, -, /
-    T dot(const vec& v1, const vec& v2)
-    T dot(const vec& v2) const
-    length?  What does that mean for mat4f?
-    normalize?  What does that mean for mat4f?
-    operator on this versus binary operator? for:
-        dot / *
-	cross / %
-	normalize
-types
-    vec3f, vec4f
-    mat4f
-    rot4f
-    xlate3f?
-    scale3f?
-    scale4f?
-    what to do about ray6?
-*/
-
-#endif /* __LINMATH_H__ */
-
-/*!
- * vi:tabstop=8
- !*/
+#endif /* __VECTORMATH_H__ */
