@@ -774,7 +774,7 @@ struct segment
     segment(const vec3f &v0, const vec3f &v1) :
         m_v0(v0),
         m_v1(v1)
-	{}
+    {}
 };
 
 struct ray
@@ -782,34 +782,52 @@ struct ray
     vec3f m_origin;
     vec3f m_direction;
     vec3f m_recipdir;
+
     void classify() {
 	m_recipdir[0] = 1.0f / m_direction[0];
 	m_recipdir[1] = 1.0f / m_direction[1];
 	m_recipdir[2] = 1.0f / m_direction[2];
     }
-    ray(const vec3f& o, const vec3f& d) : m_origin(o), m_direction(d) {classify();};
-    ray(const segment &s) : m_origin(s.m_v0), m_direction(s.m_v1 - s.m_v0) {classify();}
+
+    ray(const vec3f& o, const vec3f& d) : m_origin(o), m_direction(d)
+    {
+        classify();
+    };
+
+    ray(const segment &s) :
+        m_origin(s.m_v0),
+        m_direction(s.m_v1 - s.m_v0)
+    {
+        classify();
+    }
+
     ray() {};
-    float length() const { return m_direction.length(); }
-    float at(int axis, float plane) const {
+
+    float length() const
+    {
+        return m_direction.length();
+    }
+
+    float at(int axis, float plane) const
+    {
 	if(m_direction[axis] > -.00001f && m_direction[axis] < 0.0f)
 	    return -FLT_MAX;
 	if(m_direction[axis] >= 0.0f && m_direction[axis] < 0.00001f)
 	    return FLT_MAX;
 	return (plane - m_origin[axis]) * m_recipdir[axis];
     }
+
+    vec3f at(float t) const {
+        return m_origin * m_direction * t;
+    }
 };
 
 // Probably should do this by passing in inverse-transpose for direction
 inline ray operator*(const ray& r, const mat4f& m)
 {
-    ray newr;
-
-    newr.m_origin = r.m_origin * m;
-    newr.m_direction = (r.m_direction + r.m_origin) * m - newr.m_origin;
-    newr.classify();
-
-    return newr;
+    vec3f newo = r.m_origin * m;
+    vec3f newd = (r.m_direction + r.m_origin) * m - newo;
+    return ray(newo, newd);
 }
 
 inline float operator*(const ray& r, const vec4f& plane)
