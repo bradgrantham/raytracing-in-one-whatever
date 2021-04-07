@@ -7,9 +7,9 @@
 void write_pixel(FILE *fp, const vec3f& color)
 {
     uint8_t rgb8[3];
-    rgb8[0] = static_cast<int>(color[0] * 255.999);
-    rgb8[1] = static_cast<int>(color[1] * 255.999);
-    rgb8[2] = static_cast<int>(color[2] * 255.999);
+    for(int i = 0; i < 3; i++) {
+        rgb8[i] = static_cast<int>(color[i] * 255.999);
+    }
     fwrite(rgb8, 3, 1, fp);
 }
 
