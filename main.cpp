@@ -4,7 +4,7 @@
 
 #include "vectormath.h"
 
-void write_pixel(FILE *fp, const vec3f& color)
+void writePixel(FILE *fp, const vec3f& color)
 {
     uint8_t rgb8[3];
     for(int i = 0; i < 3; i++) {
@@ -13,8 +13,21 @@ void write_pixel(FILE *fp, const vec3f& color)
     fwrite(rgb8, 3, 1, fp);
 }
 
+bool sphereIsHit(const vec3f& center, float radius, const ray& r)
+{
+    vec3f oc = r.m_origin - center;
+    float a = vec_dot(r.m_direction, r.m_direction);
+    float b = 2.0f * vec_dot(oc, r.m_direction);
+    float c = vec_dot(oc, oc) - radius * radius;
+    float discriminant = b * b - 4 * a * c;
+    return (discriminant > 0);
+}
+
 vec3f evaluateRay(const ray& r)
 {
+    if (sphereIsHit(vec3f(0, 0, -1), 0.5, r)) {
+        return vec3f(1, 0, 0);
+    }
     vec3f dir = vec_normalize(r.m_direction);
     auto t = 0.5f * (dir.y + 1.0f);
     return (1.0f - t) * vec3f(1.0f, 1.0f, 1.0f) + t * vec3f(0.5f, 0.7f, 1.0f);
@@ -51,7 +64,7 @@ int main(int argc, char **argv)
 
             vec3f color = evaluateRay(r);
 
-            write_pixel(fp, color);
+            writePixel(fp, color);
         }
     }
     std::cout << "\n";
