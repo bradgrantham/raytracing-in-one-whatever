@@ -818,7 +818,7 @@ struct ray
     }
 
     vec3f at(float t) const {
-        return m_origin * m_direction * t;
+        return m_origin + m_direction * t;
     }
 };
 
