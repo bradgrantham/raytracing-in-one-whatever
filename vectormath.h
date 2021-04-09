@@ -72,6 +72,7 @@ V vec_reflect(const V& i, const V& n)
     return tmp;
 }
 
+#if 0
 template <class V>
 bool operator==(const V& v0, const V& v1)
 {
@@ -81,6 +82,7 @@ bool operator==(const V& v0, const V& v1)
             return false;
     return true;
 }
+#endif
     
 template <class V>
 V operator+(const V& v0, const V& v1)

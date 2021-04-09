@@ -1,4 +1,6 @@
 #include <iostream>
+#include <vector>
+#include <memory>
 #include <cstdio>
 #include <cstdint>
 
@@ -14,6 +16,32 @@ struct shadepoint
 struct hittable
 {
     virtual bool hit(const ray& r, float tmin, float tmax, shadepoint *hit) const = 0;
+    virtual ~hittable() {};
+};
+
+struct group : public hittable
+{
+    std::vector<std::shared_ptr<hittable>> children;
+
+    group(std::vector<std::shared_ptr<hittable>> children) :
+        children(children)
+    {
+    }
+    virtual bool hit(const ray& r, float tmin, float tmax, shadepoint *hit) const
+    {
+        float success = false;
+        hit->t = tmax;
+        for(const auto& child: children) {
+            shadepoint candidate;
+            if(child->hit(r, tmin, hit->t, &candidate)) {
+                *hit = candidate;
+                success = true;
+            }
+        }
+        return success;
+    }
+
+    virtual ~group() {};
 };
 
 struct sphere : public hittable
@@ -58,6 +86,8 @@ struct sphere : public hittable
 
         return true;
     }
+
+    virtual ~sphere() {};
 };
 
 void writePixel(FILE *fp, const vec3f& color)
@@ -69,10 +99,10 @@ void writePixel(FILE *fp, const vec3f& color)
     fwrite(rgb8, 3, 1, fp);
 }
 
-vec3f evaluateRay(const ray& r, hittable *thingie)
+vec3f cast(const ray& r, hittable *thingie)
 {
     shadepoint point;
-    bool hit = thingie->hit(r, -FLT_MAX, FLT_MAX, &point);
+    bool hit = thingie->hit(r, 0.0f, FLT_MAX, &point);
     if(hit) {
         return 0.5 * vec3f(point.n.x + 1, point.n.y + 1, point.n.z + 1);
     }
@@ -102,7 +132,9 @@ int main(int argc, char **argv)
     vec3f vertical(0, viewportHeight, 0);
     auto lowerLeft = origin - horizontal / 2.0f - vertical / 2.0f - vec3f(0, 0, focalLength);
 
-    sphere scene({0,0,-1}, 0.5);
+    auto s1 = std::make_shared<sphere>(vec3f(0, 0, -1), 0.5f);
+    auto s2 = std::make_shared<sphere>(vec3f(0, -100.5f, -1), 100.0f);
+    group scene = group({s1, s2});
 
     for(int j = imageHeight - 1; j >= 0; j--) {
         for(int i = 0; i < imageWidth; i++) {
@@ -113,7 +145,7 @@ int main(int argc, char **argv)
 
             ray r(origin, lowerLeft + u * horizontal + v * vertical - origin);
 
-            vec3f color = evaluateRay(r, &scene);
+            vec3f color = cast(r, &scene);
 
             writePixel(fp, color);
         }
