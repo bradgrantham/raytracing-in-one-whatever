@@ -7,11 +7,50 @@
 
 #include "vectormath.h"
 
-inline float random_float()
+float random_float()
 {
-    static std::uniform_real_distribution<float> distribution(0.0, 1.0);
+    static std::uniform_real_distribution<float> distribution(0.0f, 1.0f);
     static std::mt19937 generator;
     return distribution(generator);
+}
+
+float random_float(float min, float max)
+{
+    // Returns a random real in [min,max).
+    return min + (max-min)*random_float();
+}
+
+vec3f random_vec3f(float min, float max)
+{
+    return vec3f(random_float(min, max), random_float(min, max), random_float(min, max));
+}
+
+vec3f random_vec3f()
+{
+    return random_vec3f(0.0f, 1.0f);
+}
+
+vec3f randomInUnitSphere()
+{
+    while (true) {
+        vec3f p = random_vec3f(-1,1);
+        if (vec_length_sq(p) >= 1) continue;
+        return p;
+    }
+}
+
+vec3f randomUnitVec3f()
+{
+    return vec_normalize(randomInUnitSphere());
+}
+
+vec3f randomInHemisphere(const vec3f& normal)
+{
+    vec3f v = randomInUnitSphere();
+    if (vec_dot(v, normal) > 0.0f) // In the same hemisphere as the normal
+        return v;
+    else
+        return -v;
 }
 
 struct camera
@@ -122,17 +161,23 @@ void writePixel(FILE *fp, const vec3f& color)
 {
     uint8_t rgb8[3];
     for(int i = 0; i < 3; i++) {
-        rgb8[i] = static_cast<int>(color[i] * 255.999);
+        rgb8[i] = static_cast<int>(std::clamp(color[i] * 255.999f, 0.0f, 255.999f));
     }
     fwrite(rgb8, 3, 1, fp);
 }
 
-vec3f cast(const ray& r, hittable *thingie)
+vec3f cast(const ray& r, hittable *thingie, int depth)
 {
+    if(depth < 0) {
+        return vec3f(0, 0, 0);
+    }
+
     shadepoint point;
-    bool hit = thingie->hit(r, 0.0f, FLT_MAX, &point);
+    bool hit = thingie->hit(r, 0.001f, FLT_MAX, &point);
     if(hit) {
-        return 0.5 * vec3f(point.n.x + 1, point.n.y + 1, point.n.z + 1);
+        vec3f bounce = randomInHemisphere(point.n);
+        vec3f bounceColor = cast(ray(point.p, bounce), thingie, depth - 1);
+        return 0.5 * bounceColor;
     }
 
     vec3f dir = vec_normalize(r.m_direction);
@@ -142,7 +187,8 @@ vec3f cast(const ray& r, hittable *thingie)
 
 int main(int argc, char **argv)
 {
-    int sampleCount = 100;
+    int maxBounceDepth = 50;
+    int sampleCount = 16;
     int aspectRatioNum = 16;
     int aspectRatioDenom = 9;
     float viewportHeight = 2.0f;
@@ -157,9 +203,13 @@ int main(int argc, char **argv)
 
     camera cam(aspectRatioNum, aspectRatioDenom, viewportHeight, focalLength);
 
-    auto s1 = std::make_shared<sphere>(vec3f(0, 0, -1), 0.5f);
-    auto s2 = std::make_shared<sphere>(vec3f(0, -100.5f, -1), 100.0f);
-    group scene = group({s1, s2});
+    std::vector<std::shared_ptr<hittable>> shapes;
+
+    shapes.push_back(std::make_shared<sphere>(vec3f(0, -100.5f, -1), 100.0f));
+
+    shapes.push_back(std::make_shared<sphere>(vec3f(0, 0, -1), 0.5));
+
+    group scene = group(shapes);
 
     for(int j = imageHeight - 1; j >= 0; j--) {
         for(int i = 0; i < imageWidth; i++) {
@@ -170,10 +220,13 @@ int main(int argc, char **argv)
                 float u = (i + random_float()) * 1.0f / (imageWidth - 1);
                 float v = (j + random_float()) * 1.0f / (imageHeight - 1);
 
-                vec3f sample = cast(cam.getRay(u, v), &scene);
+                vec3f sample = cast(cam.getRay(u, v), &scene, maxBounceDepth);
                 color += sample;
             }
             color /= sampleCount;
+            color.x = sqrtf(color.x);
+            color.y = sqrtf(color.y);
+            color.z = sqrtf(color.z);
 
             writePixel(fp, color);
         }
