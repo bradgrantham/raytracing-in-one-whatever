@@ -4,37 +4,44 @@
 #include <cstdio>
 #include <cstdint>
 #include <random>
+#include <cmath>
 
 #include "vectormath.h"
 
-float random_float()
+constexpr bool useStdRandom = true;
+
+float randomFloat()
 {
-    static std::uniform_real_distribution<float> distribution(0.0f, 1.0f);
-    static std::mt19937 generator;
-    return distribution(generator);
+    if(useStdRandom) {
+        static std::uniform_real_distribution<float> distribution(0.0f, 1.0f);
+        static std::mt19937 generator;
+        return distribution(generator);
+    } else {
+        return drand48();
+    }
 }
 
-float random_float(float min, float max)
+float randomFloat(float min, float max)
 {
     // Returns a random real in [min,max).
-    return min + (max-min)*random_float();
+    return min + (max - min) * randomFloat();
 }
 
-vec3f random_vec3f(float min, float max)
+vec3f randomVec3f(float min, float max)
 {
-    return vec3f(random_float(min, max), random_float(min, max), random_float(min, max));
+    return vec3f(randomFloat(min, max), randomFloat(min, max), randomFloat(min, max));
 }
 
-vec3f random_vec3f()
+vec3f randomVec3f()
 {
-    return random_vec3f(0.0f, 1.0f);
+    return randomVec3f(0.0f, 1.0f);
 }
 
 vec3f randomInUnitSphere()
 {
     while (true) {
-        vec3f p = random_vec3f(-1,1);
-        if (vec_length_sq(p) >= 1) continue;
+        vec3f p = randomVec3f(-1,1);
+        if (vec_length_sq(p) > 1) continue;
         return p;
     }
 }
@@ -73,7 +80,7 @@ struct camera
     }
 };
 
-struct shadepoint
+struct ShadeParams
 {
     vec3f p;
     vec3f n;
@@ -82,7 +89,7 @@ struct shadepoint
 
 struct hittable
 {
-    virtual bool hit(const ray& r, float tmin, float tmax, shadepoint *hit) const = 0;
+    virtual bool hit(const ray& r, float tmin, float tmax, ShadeParams *hit) const = 0;
     virtual ~hittable() {};
 };
 
@@ -94,14 +101,14 @@ struct group : public hittable
         children(children)
     {
     }
-    virtual bool hit(const ray& r, float tmin, float tmax, shadepoint *hit) const
+    virtual bool hit(const ray& r, float tmin, float tmax, ShadeParams *hit) const
     {
         float success = false;
-        hit->t = tmax;
         for(const auto& child: children) {
-            shadepoint candidate;
-            if(child->hit(r, tmin, hit->t, &candidate)) {
+            ShadeParams candidate;
+            if(child->hit(r, tmin, tmax, &candidate)) {
                 *hit = candidate;
+                tmax = candidate.t;
                 success = true;
             }
         }
@@ -126,7 +133,7 @@ struct sphere : public hittable
         radius(radius)
     {}
 
-    virtual bool hit(const ray& r, float tmin, float tmax, shadepoint *hit) const
+    virtual bool hit(const ray& r, float tmin, float tmax, ShadeParams *hit) const
     {
         vec3f oc = r.m_origin - center;
         float a = vec_dot(r.m_direction, r.m_direction);
@@ -172,11 +179,11 @@ vec3f cast(const ray& r, hittable *thingie, int depth)
         return vec3f(0, 0, 0);
     }
 
-    shadepoint point;
-    bool hit = thingie->hit(r, 0.001f, FLT_MAX, &point);
+    ShadeParams params;
+    bool hit = thingie->hit(r, 0.001f, FLT_MAX, &params);
     if(hit) {
-        vec3f bounce = randomInHemisphere(point.n);
-        vec3f bounceColor = cast(ray(point.p, bounce), thingie, depth - 1);
+        vec3f bounce = randomInHemisphere(params.n);
+        vec3f bounceColor = cast(ray(params.p, bounce), thingie, depth - 1);
         return 0.5 * bounceColor;
     }
 
@@ -188,11 +195,22 @@ vec3f cast(const ray& r, hittable *thingie, int depth)
 int main(int argc, char **argv)
 {
     int maxBounceDepth = 50;
-    int sampleCount = 16;
+    int sampleCount = 64;
     int aspectRatioNum = 16;
     int aspectRatioDenom = 9;
     float viewportHeight = 2.0f;
     auto focalLength = 1.0;
+
+    if(false){
+        vec3f rando = vec3f(0, 0, 0);
+        for(int i = 0; i < 100000; i++) {
+            vec3f hemi = randomInHemisphere(vec3f(0, 1, 0));
+            rando = rando + hemi;
+        }
+        rando /= 100000;
+        rando.normalize();
+        printf("%f %f %f\n", rando.x, rando.y, rando.z);
+    }
 
     int imageWidth = 512;
     int imageHeight = imageWidth * aspectRatioDenom / aspectRatioNum;
@@ -217,8 +235,8 @@ int main(int argc, char **argv)
 
             vec3f color(0, 0, 0);
             for(int sampleIndex = 0; sampleIndex < sampleCount; sampleIndex++) {
-                float u = (i + random_float()) * 1.0f / (imageWidth - 1);
-                float v = (j + random_float()) * 1.0f / (imageHeight - 1);
+                float u = (i + randomFloat()) * 1.0f / (imageWidth - 1);
+                float v = (j + randomFloat()) * 1.0f / (imageHeight - 1);
 
                 vec3f sample = cast(cam.getRay(u, v), &scene, maxBounceDepth);
                 color += sample;
