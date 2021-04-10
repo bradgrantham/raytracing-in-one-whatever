@@ -3,8 +3,36 @@
 #include <memory>
 #include <cstdio>
 #include <cstdint>
+#include <random>
 
 #include "vectormath.h"
+
+inline float random_float()
+{
+    static std::uniform_real_distribution<float> distribution(0.0, 1.0);
+    static std::mt19937 generator;
+    return distribution(generator);
+}
+
+struct camera
+{
+    vec3f horizontal;
+    vec3f vertical;
+    vec3f lowerLeft;
+
+    camera(int aspectRatioNum, int aspectRatioDenom, float viewportHeight, float focalLength)
+    {
+        float viewportWidth = viewportHeight * aspectRatioNum / aspectRatioDenom;
+        horizontal = vec3f(viewportWidth, 0, 0);
+        vertical = vec3f(0, viewportHeight, 0);
+        lowerLeft = vec3f(0, 0, 0) - horizontal / 2.0f - vertical / 2.0f - vec3f(0, 0, focalLength);
+    }
+
+    ray getRay(float u, float v) const
+    {
+        return ray(vec3f(0, 0, 0), lowerLeft + u * horizontal + v * vertical - vec3f(0, 0, 0));
+    }
+};
 
 struct shadepoint
 {
@@ -114,23 +142,20 @@ vec3f cast(const ray& r, hittable *thingie)
 
 int main(int argc, char **argv)
 {
+    int sampleCount = 100;
     int aspectRatioNum = 16;
     int aspectRatioDenom = 9;
+    float viewportHeight = 2.0f;
+    auto focalLength = 1.0;
+
     int imageWidth = 512;
     int imageHeight = imageWidth * aspectRatioDenom / aspectRatioNum;
-
 
     FILE *fp = fopen("image.ppm", "wb");
     fprintf(fp, "P6 %d %d 255\n", imageWidth, imageHeight);
 
-    float viewportHeight = 2.0f;
-    float viewportWidth = viewportHeight * aspectRatioNum / aspectRatioDenom;
-    auto focalLength = 1.0;
 
-    vec3f origin(0, 0, 0);
-    vec3f horizontal(viewportWidth, 0, 0);
-    vec3f vertical(0, viewportHeight, 0);
-    auto lowerLeft = origin - horizontal / 2.0f - vertical / 2.0f - vec3f(0, 0, focalLength);
+    camera cam(aspectRatioNum, aspectRatioDenom, viewportHeight, focalLength);
 
     auto s1 = std::make_shared<sphere>(vec3f(0, 0, -1), 0.5f);
     auto s2 = std::make_shared<sphere>(vec3f(0, -100.5f, -1), 100.0f);
@@ -140,12 +165,15 @@ int main(int argc, char **argv)
         for(int i = 0; i < imageWidth; i++) {
             std::cout << "\rScanlines remaining: " << j << ' ' << std::flush;
 
-            float u = i * 1.0f / (imageWidth - 1);
-            float v = j * 1.0f / (imageHeight - 1);
+            vec3f color(0, 0, 0);
+            for(int sampleIndex = 0; sampleIndex < sampleCount; sampleIndex++) {
+                float u = (i + random_float()) * 1.0f / (imageWidth - 1);
+                float v = (j + random_float()) * 1.0f / (imageHeight - 1);
 
-            ray r(origin, lowerLeft + u * horizontal + v * vertical - origin);
-
-            vec3f color = cast(r, &scene);
+                vec3f sample = cast(cam.getRay(u, v), &scene);
+                color += sample;
+            }
+            color /= sampleCount;
 
             writePixel(fp, color);
         }
