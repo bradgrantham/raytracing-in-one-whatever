@@ -8,6 +8,9 @@
 
 #include "vectormath.h"
 
+//--------------------------------------------------------------------------
+// Random number utility functions
+
 constexpr bool useStdRandom = true;
 
 float randomFloat()
@@ -41,8 +44,9 @@ vec3f randomInUnitSphere()
 {
     while (true) {
         vec3f p = randomVec3f(-1,1);
-        if (vec_length_sq(p) > 1) continue;
-        return p;
+        if (vec_length_sq(p) <= 1.0f) {
+            return p;
+        }
     }
 }
 
@@ -60,13 +64,16 @@ vec3f randomInHemisphere(const vec3f& normal)
         return -v;
 }
 
-struct camera
+//--------------------------------------------------------------------------
+// Camera
+
+struct Camera
 {
     vec3f horizontal;
     vec3f vertical;
     vec3f lowerLeft;
 
-    camera(int aspectRatioNum, int aspectRatioDenom, float viewportHeight, float focalLength)
+    Camera(int aspectRatioNum, int aspectRatioDenom, float viewportHeight, float focalLength)
     {
         float viewportWidth = viewportHeight * aspectRatioNum / aspectRatioDenom;
         horizontal = vec3f(viewportWidth, 0, 0);
@@ -80,24 +87,90 @@ struct camera
     }
 };
 
+
+//--------------------------------------------------------------------------
+// Material, materials, and shading
+
+struct Material
+{
+    virtual bool scatter(const ray& incident, const vec3f& p, const vec3f& n, vec3f& attenuation, vec3f& outgoingDirection) const = 0;
+    typedef std::shared_ptr<Material> Ptr;
+    virtual ~Material() {}
+};
+
+bool isNearZero(const vec3f& v)
+{
+    // Return true if the vector is close to zero in all dimensions.
+    constexpr auto s = 1e-8;
+    return (fabsf(v[0]) < s) && (fabsf(v[1]) < s) && (fabsf(v[2]) < s);
+}
+
+struct Diffuse : public Material
+{
+    vec3f color;
+    Diffuse(const vec3f& color) :
+        color(color)
+    {}
+    virtual bool scatter(const ray& incident, const vec3f& p, const vec3f& n, vec3f& attenuation, vec3f& outgoingDirection) const
+    {
+        outgoingDirection = randomInHemisphere(n);
+        if(isNearZero(outgoingDirection)) {
+            outgoingDirection = n;
+        }
+        attenuation = color;
+        return true;
+    }
+    virtual ~Diffuse() {}
+};
+
+struct Metal : public Material
+{
+    vec3f color;
+    float gloss;
+    Metal(const vec3f& color, float gloss) :
+        color(color),
+        gloss(std::clamp(gloss, 0.0f, 1.0f))
+    {}
+    virtual bool scatter(const ray& incident, const vec3f& p, const vec3f& n, vec3f& attenuation, vec3f& outgoingDirection) const
+    {
+        vec3f i = vec_normalize(incident.m_direction);
+        outgoingDirection = vec_reflect(i, n) + gloss * randomInUnitSphere();
+        attenuation = color;
+        return vec_dot(outgoingDirection, n) > 0;
+    }
+    virtual ~Metal() {}
+};
+
 struct ShadeParams
 {
     vec3f p;
     vec3f n;
     float t;
+    Material *m;        // Control flow that stores a Material* here must guarantee a Material would not be deleted before the ShadeParams is dtor'd
 };
 
-struct hittable
+vec3f shadeBackground(const ray &r)
+{
+    vec3f dir = vec_normalize(r.m_direction);
+    float t = 0.5f * (dir.y + 1.0f);
+    return (1.0f - t) * vec3f(1.0f, 1.0f, 1.0f) + t * vec3f(0.5f, 0.7f, 1.0f);
+}
+
+//--------------------------------------------------------------------------
+// Things that can be hit with a ray
+
+struct Hittable
 {
     virtual bool hit(const ray& r, float tmin, float tmax, ShadeParams *hit) const = 0;
-    virtual ~hittable() {};
+    virtual ~Hittable() {};
+    typedef std::shared_ptr<Hittable> Ptr;
 };
 
-struct group : public hittable
+struct Group : public Hittable
 {
-    std::vector<std::shared_ptr<hittable>> children;
+    std::vector<Hittable::Ptr> children;
 
-    group(std::vector<std::shared_ptr<hittable>> children) :
+    Group(std::vector<Hittable::Ptr> children) :
         children(children)
     {
     }
@@ -115,22 +188,24 @@ struct group : public hittable
         return success;
     }
 
-    virtual ~group() {};
+    virtual ~Group() {};
 };
 
-struct sphere : public hittable
+struct Sphere : public Hittable
 {
     vec3f center;
     float radius;
+    Material::Ptr mtl;
 
-    sphere() :
+    Sphere() :
         center(vec3f(0, 0, 0)),
         radius(1)
     {}
 
-    sphere(vec3f center, float radius) :
+    Sphere(vec3f center, float radius, Material::Ptr mtl) :
         center(center),
-        radius(radius)
+        radius(radius),
+        mtl(mtl)
     {}
 
     virtual bool hit(const ray& r, float tmin, float tmax, ShadeParams *hit) const
@@ -157,12 +232,16 @@ struct sphere : public hittable
         hit->t = root;
         hit->p = r.at(hit->t);
         hit->n = (hit->p - center) / radius;
+        hit->m = mtl.get();
 
         return true;
     }
 
-    virtual ~sphere() {};
+    virtual ~Sphere() {};
 };
+
+//--------------------------------------------------------------------------
+// Image I/O
 
 void writePixel(FILE *fp, const vec3f& color)
 {
@@ -173,7 +252,14 @@ void writePixel(FILE *fp, const vec3f& color)
     fwrite(rgb8, 3, 1, fp);
 }
 
-vec3f cast(const ray& r, hittable *thingie, int depth)
+//--------------------------------------------------------------------------
+// Cast a ray and calculate a color
+
+/*
+ * Materials must NOT be deleted from a ShadeParams by any function
+ * called from cast()
+ */
+vec3f cast(const ray& r, Hittable::Ptr thingie, int depth)
 {
     if(depth < 0) {
         return vec3f(0, 0, 0);
@@ -182,20 +268,24 @@ vec3f cast(const ray& r, hittable *thingie, int depth)
     ShadeParams params;
     bool hit = thingie->hit(r, 0.001f, FLT_MAX, &params);
     if(hit) {
-        vec3f bounce = randomInHemisphere(params.n);
-        vec3f bounceColor = cast(ray(params.p, bounce), thingie, depth - 1);
-        return 0.5 * bounceColor;
+        vec3f bounceColor;
+        vec3f bounce;
+        bool repeat = params.m->scatter(r, params.p, params.n, bounceColor, bounce);
+        if(repeat) {
+            return bounceColor * cast(ray(params.p, bounce), thingie, depth - 1);
+        }
+        return vec3f(0, 0, 0);
     }
 
-    vec3f dir = vec_normalize(r.m_direction);
-    float t = 0.5f * (dir.y + 1.0f);
-    return (1.0f - t) * vec3f(1.0f, 1.0f, 1.0f) + t * vec3f(0.5f, 0.7f, 1.0f);
+    return shadeBackground(r);
 }
+
+//--------------------------------------------------------------------------
 
 int main(int argc, char **argv)
 {
     int maxBounceDepth = 50;
-    int sampleCount = 64;
+    int sampleCount = 100;
     int aspectRatioNum = 16;
     int aspectRatioDenom = 9;
     float viewportHeight = 2.0f;
@@ -219,15 +309,22 @@ int main(int argc, char **argv)
     fprintf(fp, "P6 %d %d 255\n", imageWidth, imageHeight);
 
 
-    camera cam(aspectRatioNum, aspectRatioDenom, viewportHeight, focalLength);
+    Camera cam(aspectRatioNum, aspectRatioDenom, viewportHeight, focalLength);
 
-    std::vector<std::shared_ptr<hittable>> shapes;
+    std::vector<Hittable::Ptr> shapes;
 
-    shapes.push_back(std::make_shared<sphere>(vec3f(0, -100.5f, -1), 100.0f));
+    auto lemonDiffuse = std::make_shared<Diffuse>(vec3f(.8, .8, 0));
+    auto clayDiffuse = std::make_shared<Diffuse>(vec3f(.7, .3, .3));
+    auto silverPolishedMetal = std::make_shared<Metal>(vec3f(0.8, 0.8, 0.8), 0.3f);
+    auto goldRoughMetal = std::make_shared<Metal>(vec3f(0.8, 0.6, 0.2), 1.0f);
 
-    shapes.push_back(std::make_shared<sphere>(vec3f(0, 0, -1), 0.5));
+    shapes.push_back(std::make_shared<Sphere>(vec3f(0, -100.5f, -1), 100.0f, lemonDiffuse));
 
-    group scene = group(shapes);
+    shapes.push_back(std::make_shared<Sphere>(vec3f(0, 0, -1), 0.5, clayDiffuse));
+    shapes.push_back(std::make_shared<Sphere>(vec3f(-1.0, 0.0, -1.0), 0.5, silverPolishedMetal));
+    shapes.push_back(std::make_shared<Sphere>(vec3f( 1.0, 0.0, -1.0), 0.5, goldRoughMetal));
+
+    auto scene = std::make_shared<Group>(shapes);
 
     for(int j = imageHeight - 1; j >= 0; j--) {
         for(int i = 0; i < imageWidth; i++) {
@@ -238,7 +335,7 @@ int main(int argc, char **argv)
                 float u = (i + randomFloat()) * 1.0f / (imageWidth - 1);
                 float v = (j + randomFloat()) * 1.0f / (imageHeight - 1);
 
-                vec3f sample = cast(cam.getRay(u, v), &scene, maxBounceDepth);
+                vec3f sample = cast(cam.getRay(u, v), scene, maxBounceDepth);
                 color += sample;
             }
             color /= sampleCount;

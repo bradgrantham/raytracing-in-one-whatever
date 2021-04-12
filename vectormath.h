@@ -783,27 +783,16 @@ struct ray
 {
     vec3f m_origin;
     vec3f m_direction;
-    vec3f m_recipdir;
-
-    void classify() {
-	m_recipdir[0] = 1.0f / m_direction[0];
-	m_recipdir[1] = 1.0f / m_direction[1];
-	m_recipdir[2] = 1.0f / m_direction[2];
-    }
 
     ray(const vec3f& o, const vec3f& d) : m_origin(o), m_direction(d)
-    {
-        classify();
-    };
+    { }
 
     ray(const segment &s) :
         m_origin(s.m_v0),
         m_direction(s.m_v1 - s.m_v0)
-    {
-        classify();
-    }
+    { }
 
-    ray() {};
+    ray() {}
 
     float length() const
     {
@@ -816,10 +805,11 @@ struct ray
 	    return -FLT_MAX;
 	if(m_direction[axis] >= 0.0f && m_direction[axis] < 0.00001f)
 	    return FLT_MAX;
-	return (plane - m_origin[axis]) * m_recipdir[axis];
+	return (plane - m_origin[axis]) / m_direction[axis];
     }
 
-    vec3f at(float t) const {
+    vec3f at(float t) const
+    {
         return m_origin + m_direction * t;
     }
 };
