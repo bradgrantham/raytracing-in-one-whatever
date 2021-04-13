@@ -134,7 +134,11 @@ struct Metal : public Material
     virtual bool scatter(const ray& incident, const vec3f& p, const vec3f& n, vec3f& attenuation, vec3f& outgoingDirection) const
     {
         vec3f i = vec_normalize(incident.m_direction);
+        vec3f r = vec_reflect(i, n);
         outgoingDirection = vec_reflect(i, n) + gloss * randomInUnitSphere();
+        if(vec_dot(outgoingDirection, n) < 0) {
+            outgoingDirection = r;
+        }
         attenuation = color;
         return vec_dot(outgoingDirection, n) > 0;
     }
@@ -177,6 +181,7 @@ struct Group : public Hittable
     virtual bool hit(const ray& r, float tmin, float tmax, ShadeParams *hit) const
     {
         float success = false;
+
         for(const auto& child: children) {
             ShadeParams candidate;
             if(child->hit(r, tmin, tmax, &candidate)) {
@@ -185,6 +190,7 @@ struct Group : public Hittable
                 success = true;
             }
         }
+
         return success;
     }
 
@@ -219,19 +225,23 @@ struct Sphere : public Hittable
             return false;
         }
 
-        float sqrtd = sqrtf(discriminant);
+        float sd = sqrtf(discriminant);
 
         // Find the nearest root that lies in the acceptable range.
-        float root = (-half_b - sqrtd) / a;
+        float root = (-half_b - sd) / a;
         if (root < tmin || tmax < root) {
-            root = (-half_b + sqrtd) / a;
-            if (root < tmin || tmax < root)
+            root = (-half_b + sd) / a;
+            if (root < tmin || tmax < root) {
                 return false;
+            }
         }
 
+        vec3f point = r.at(root);
+        vec3f normal = (point - center) / radius;
+
         hit->t = root;
-        hit->p = r.at(hit->t);
-        hit->n = (hit->p - center) / radius;
+        hit->p = point;
+        hit->n = normal;
         hit->m = mtl.get();
 
         return true;
@@ -270,8 +280,8 @@ vec3f cast(const ray& r, Hittable::Ptr thingie, int depth)
     if(hit) {
         vec3f bounceColor;
         vec3f bounce;
-        bool repeat = params.m->scatter(r, params.p, params.n, bounceColor, bounce);
-        if(repeat) {
+        bool again = params.m->scatter(r, params.p, params.n, bounceColor, bounce);
+        if(again) {
             return bounceColor * cast(ray(params.p, bounce), thingie, depth - 1);
         }
         return vec3f(0, 0, 0);
