@@ -69,24 +69,32 @@ vec3f randomInHemisphere(const vec3f& normal)
 
 struct Camera
 {
+    vec3f origin;
     vec3f horizontal;
     vec3f vertical;
     vec3f lowerLeft;
 
-    Camera(int aspectRatioNum, int aspectRatioDenom, float vfov, float focalLength)
+    Camera(const vec3f& eye, const vec3f& target, const vec3f& up,
+        int aspectRatioNum, int aspectRatioDenom, float vfov, float focalLength)
     {
         float theta = vfov / 180.0f * M_PI; 
         float h = tanf(theta/2);
         float viewportHeight = 2.0 * h;
         float viewportWidth = viewportHeight * aspectRatioNum / aspectRatioDenom;
-        horizontal = vec3f(viewportWidth, 0, 0);
-        vertical = vec3f(0, viewportHeight, 0);
-        lowerLeft = vec3f(0, 0, 0) - horizontal / 2.0f - vertical / 2.0f - vec3f(0, 0, focalLength);
+
+        vec3f w = vec_normalize(eye - target);
+        vec3f u = vec_normalize(vec_cross(up, w));
+        vec3f v = vec_cross(w, u);
+
+        origin = eye;
+        horizontal = viewportWidth * u;
+        vertical = viewportHeight * v;
+        lowerLeft = origin - horizontal / 2.0f - vertical / 2.0f - w;
     }
 
     ray getRay(float u, float v) const
     {
-        return ray(vec3f(0, 0, 0), lowerLeft + u * horizontal + v * vertical - vec3f(0, 0, 0));
+        return ray(origin, lowerLeft + u * horizontal + v * vertical - origin);
     }
 };
 
@@ -348,7 +356,7 @@ int main(int argc, char **argv)
     FILE *fp = fopen("image.ppm", "wb");
     fprintf(fp, "P6 %d %d 255\n", imageWidth, imageHeight);
 
-    Camera cam(aspectRatioNum, aspectRatioDenom, 90, focalLength);
+    Camera cam(vec3f(-2,2,1), vec3f(0,0,-1), vec3f(0,1,0), aspectRatioNum, aspectRatioDenom, 20, focalLength);
 
     std::vector<Hittable::Ptr> shapes;
 
