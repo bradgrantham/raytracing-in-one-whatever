@@ -93,7 +93,7 @@ struct Camera
 
 struct Material
 {
-    virtual bool scatter(const ray& incident, const vec3f& p, const vec3f& n, vec3f& attenuation, vec3f& outgoingDirection) const = 0;
+    virtual bool scatter(const ray& incident, const vec3f& p, const vec3f& n, bool front, vec3f& attenuation, vec3f& outgoingDirection) const = 0;
     typedef std::shared_ptr<Material> Ptr;
     virtual ~Material() {}
 };
@@ -111,7 +111,7 @@ struct Diffuse : public Material
     Diffuse(const vec3f& color) :
         color(color)
     {}
-    virtual bool scatter(const ray& incident, const vec3f& p, const vec3f& n, vec3f& attenuation, vec3f& outgoingDirection) const
+    virtual bool scatter(const ray& incident, const vec3f& p, const vec3f& n, bool front, vec3f& attenuation, vec3f& outgoingDirection) const
     {
         outgoingDirection = n + randomUnitVec3f();
         if (vec_dot(outgoingDirection, n) < 0.0f) {
@@ -126,6 +126,35 @@ struct Diffuse : public Material
     virtual ~Diffuse() {}
 };
 
+float reflectance(float cosine, float ref_idx)
+{
+    // Use Schlick's approximation for reflectance.
+    auto r0 = (1-ref_idx) / (1+ref_idx);
+    r0 = r0*r0;
+    return r0 + (1-r0)*pow((1 - cosine),5);
+}
+
+struct Dielectric : public Material
+{
+    float index;
+    Dielectric(float index) :
+        index(index)
+    {}
+    virtual bool scatter(const ray& incident, const vec3f& p, const vec3f& n, bool front, vec3f& attenuation, vec3f& outgoingDirection) const
+    {
+        vec3f i = vec_normalize(incident.m_direction);
+        float eta = front ? (1.0f / index) : index;
+        bool internal = vec_refract(eta, i, n, outgoingDirection);
+        float cos_theta = std::min(vec_dot(-i, n), 1.0f);
+        if(internal || reflectance(cos_theta, eta) > randomFloat()) {
+            outgoingDirection = vec_reflect(i, n);
+        }
+        attenuation = vec3f(1, 1, 1);
+        return true;
+    }
+    virtual ~Dielectric() {}
+};
+
 struct Metal : public Material
 {
     vec3f color;
@@ -134,7 +163,7 @@ struct Metal : public Material
         color(color),
         gloss(std::clamp(gloss, 0.0f, 1.0f))
     {}
-    virtual bool scatter(const ray& incident, const vec3f& p, const vec3f& n, vec3f& attenuation, vec3f& outgoingDirection) const
+    virtual bool scatter(const ray& incident, const vec3f& p, const vec3f& n, bool front, vec3f& attenuation, vec3f& outgoingDirection) const
     {
         vec3f i = vec_normalize(incident.m_direction);
         vec3f r = vec_reflect(i, n);
@@ -152,8 +181,15 @@ struct ShadeParams
 {
     vec3f p;
     vec3f n;
+    bool f;
     float t;
     Material *m;        // Control flow that stores a Material* here must guarantee a Material would not be deleted before the ShadeParams is dtor'd
+
+    void setNormal(const vec3f& incident, const vec3f& n_)
+    {
+        f = (vec_dot(incident, n_) < 0);
+        n = f ? n_ : -n_;
+    }
 };
 
 vec3f shadeBackground(const ray &r)
@@ -244,8 +280,8 @@ struct Sphere : public Hittable
 
         hit->t = root;
         hit->p = point;
-        hit->n = normal;
         hit->m = mtl.get();
+        hit->setNormal(r.m_direction, normal);
 
         return true;
     }
@@ -283,7 +319,7 @@ vec3f cast(const ray& r, Hittable::Ptr thingie, int depth)
     if(hit) {
         vec3f bounceColor;
         vec3f bounce;
-        bool again = params.m->scatter(r, params.p, params.n, bounceColor, bounce);
+        bool again = params.m->scatter(r, params.p, params.n, params.f, bounceColor, bounce);
         if(again) {
             return bounceColor * cast(ray(params.p, bounce), thingie, depth - 1);
         }
@@ -330,11 +366,13 @@ int main(int argc, char **argv)
     auto clayDiffuse = std::make_shared<Diffuse>(vec3f(.7, .3, .3));
     auto silverPolishedMetal = std::make_shared<Metal>(vec3f(0.8, 0.8, 0.8), 0.3f);
     auto goldRoughMetal = std::make_shared<Metal>(vec3f(0.8, 0.6, 0.2), 1.0f);
+    auto glass = std::make_shared<Dielectric>(1.5f);
+
 
     shapes.push_back(std::make_shared<Sphere>(vec3f(0, -100.5f, -1), 100.0f, lemonDiffuse));
 
     shapes.push_back(std::make_shared<Sphere>(vec3f(0, 0, -1), 0.5, clayDiffuse));
-    shapes.push_back(std::make_shared<Sphere>(vec3f(-1.0, 0.0, -1.0), 0.5, silverPolishedMetal));
+    shapes.push_back(std::make_shared<Sphere>(vec3f(-1.0, 0.0, -1.0), 0.5, glass));
     shapes.push_back(std::make_shared<Sphere>(vec3f( 1.0, 0.0, -1.0), 0.5, goldRoughMetal));
 
     auto scene = std::make_shared<Group>(shapes);

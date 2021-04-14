@@ -72,6 +72,22 @@ V vec_reflect(const V& i, const V& n)
     return tmp;
 }
 
+template <class V>
+bool vec_refract(float eta, const V& i, const V& n, V& result)
+{
+    float dot = vec_dot(n, i); 
+
+    float k = 1.0f - eta * eta * (1.0f - dot * dot);
+
+    if(k < 0.0f) {
+        result = V(0, 0, 0);
+        return true;
+    }
+
+    result = eta * i - (eta * dot + sqrtf(k)) * n;
+    return false;
+}
+
 #if 0
 template <class V>
 bool operator==(const V& v0, const V& v1)
