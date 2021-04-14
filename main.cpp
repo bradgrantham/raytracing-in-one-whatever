@@ -1,9 +1,10 @@
 #include <iostream>
 #include <vector>
 #include <memory>
-#include <cstdio>
-#include <cstdint>
 #include <random>
+#include <thread>
+#include <atomic>
+#include <cstdio>
 #include <cmath>
 #include <cstdint>
 
@@ -359,79 +360,142 @@ vec3f cast(const ray& r, Hittable::Ptr thingie, int depth)
 
 //--------------------------------------------------------------------------
 
-int main(int argc, char **argv)
+Hittable::Ptr generateRandomScene()
 {
-    if(false) {
-        uint8_t q[512 * 512];
-
-        std::fill(q, q + sizeof(q), 0);
-        for(int i = 0; i < 100000; i++) {
-            vec3f p = randomInUnitDisk();
-            int x = 256 + 255 * p.x;
-            int y = 256 + 255 * p.y;
-            q[x + y * 512] = 255;
-        }
-        FILE *fp = fopen("disk.pgm", "wb");
-        fprintf(fp, "P5 %d %d 255\n", 512, 512);
-        fwrite(q, sizeof(q), 1, fp);
-        fclose(fp);
-        exit(0);
-    }
-    int maxBounceDepth = 50;
-    int sampleCount = 100;
-    int aspectRatioNum = 16;
-    int aspectRatioDenom = 9;
-
-    int imageWidth = 512;
-    int imageHeight = imageWidth * aspectRatioDenom / aspectRatioNum;
-
-    FILE *fp = fopen("image.ppm", "wb");
-    fprintf(fp, "P6 %d %d 255\n", imageWidth, imageHeight);
-
-    vec3f eye(3,3,2);
-    vec3f target(0,0,-1);
-    vec3f up(0,1,0);
-    float distToFocus = vec_length(eye - target);
-    float aperture = 2.0f;
-    Camera cam(eye, target, up, aspectRatioNum, aspectRatioDenom, 20, aperture, distToFocus);
-
     std::vector<Hittable::Ptr> shapes;
 
-    auto lemonDiffuse = std::make_shared<Diffuse>(vec3f(.8, .8, 0));
-    auto clayDiffuse = std::make_shared<Diffuse>(vec3f(.7, .3, .3));
-    auto navyDiffuse = std::make_shared<Diffuse>(vec3f(0.1, 0.2, 0.5));
-    auto silverPolishedMetal = std::make_shared<Metal>(vec3f(0.8, 0.8, 0.8), 0.3f);
-    auto goldRoughMetal = std::make_shared<Metal>(vec3f(0.8, 0.6, 0.2), 1.0f);
-    auto glass = std::make_shared<Dielectric>(1.5f);
+    auto ground_material = std::make_shared<Diffuse>(vec3f(0.5, 0.5, 0.5));
+    shapes.push_back(std::make_shared<Sphere>(vec3f(0,-1000,0), 1000, ground_material));
 
+    for (int a = -11; a < 11; a++) {
+        for (int b = -11; b < 11; b++) {
+            auto choose_mat = randomFloat();
+            vec3f center(a + 0.9*randomFloat(), 0.2, b + 0.9*randomFloat());
 
-    shapes.push_back(std::make_shared<Sphere>(vec3f(0, -100.5f, -1), 100.0f, lemonDiffuse));
+            if (vec_length(center - vec3f(4, 0.2, 0)) > 0.9) {
+                std::shared_ptr<Material> sphere_material;
 
-    shapes.push_back(std::make_shared<Sphere>(vec3f(0, 0, -1), 0.5, navyDiffuse));
-    shapes.push_back(std::make_shared<Sphere>(vec3f(-1.0, 0.0, -1.0), 0.5, glass));
-    shapes.push_back(std::make_shared<Sphere>(vec3f( 1.0, 0.0, -1.0), 0.5, goldRoughMetal));
+                if (choose_mat < 0.8) {
+                    // diffuse
+                    auto albedo = randomVec3f() * randomVec3f();
+                    sphere_material = std::make_shared<Diffuse>(albedo);
+                    shapes.push_back(std::make_shared<Sphere>(center, 0.2, sphere_material));
+                } else if (choose_mat < 0.95) {
+                    // metal
+                    auto albedo = randomVec3f(0.5, 1);
+                    auto fuzz = randomFloat(0, 0.5);
+                    sphere_material = std::make_shared<Metal>(albedo, fuzz);
+                    shapes.push_back(std::make_shared<Sphere>(center, 0.2, sphere_material));
+                } else {
+                    // glass
+                    sphere_material = std::make_shared<Dielectric>(1.5);
+                    shapes.push_back(std::make_shared<Sphere>(center, 0.2, sphere_material));
+                }
+            }
+        }
+    }
 
-    auto scene = std::make_shared<Group>(shapes);
+    auto material1 = std::make_shared<Dielectric>(1.5);
+    shapes.push_back(std::make_shared<Sphere>(vec3f(0, 1, 0), 1.0, material1));
+
+    auto material2 = std::make_shared<Diffuse>(vec3f(0.4, 0.2, 0.1));
+    shapes.push_back(std::make_shared<Sphere>(vec3f(-4, 1, 0), 1.0, material2));
+
+    auto material3 = std::make_shared<Metal>(vec3f(0.7, 0.6, 0.5), 0.0);
+    shapes.push_back(std::make_shared<Sphere>(vec3f(4, 1, 0), 1.0, material3));
+
+    return std::make_shared<Group>(shapes);
+}
+
+int main(int argc, char **argv)
+{
+    int maxBounceDepth = 50;
+    int sampleCount = 500;
+    int aspectRatioNum = 3;
+    int aspectRatioDenom = 2;
+    int imageWidth = 1200;
+    int imageHeight = imageWidth * aspectRatioDenom / aspectRatioNum;
+    vec3f *image = new vec3f[imageWidth * imageHeight];
+    int *imageWeight = new int[imageWidth * imageHeight];
+    int threadCount = std::thread::hardware_concurrency();
+
+    vec3f eye(13, 2, 3);
+    vec3f target(0,0,0);
+    vec3f up(0,1,0);
+    float distToFocus = 10.0;
+    float aperture = .1f;
+    Camera cam(eye, target, up, aspectRatioNum, aspectRatioDenom, 20, aperture, distToFocus);
+
+    Hittable::Ptr scene = generateRandomScene();
 
     for(int j = imageHeight - 1; j >= 0; j--) {
         for(int i = 0; i < imageWidth; i++) {
-            std::cout << "\rScanlines remaining: " << j << ' ' << std::flush;
-
-            vec3f color(0, 0, 0);
-            for(int sampleIndex = 0; sampleIndex < sampleCount; sampleIndex++) {
-                float u = (i + randomFloat()) / (imageWidth - 1);
-                float v = (j + randomFloat()) / (imageHeight - 1);
-
-                vec3f sample = cast(cam.getRay(u, v), scene, maxBounceDepth);
-                color += sample;
-            }
-            color /= sampleCount;
-            color.x = sqrtf(color.x);
-            color.y = sqrtf(color.y);
-            color.z = sqrtf(color.z);
-
-            writePixel(fp, color);
+            image[i + j * imageWidth] = vec3f(0, 0, 0);
+            imageWeight[i + j * imageWidth] = 0;
         }
     }
+
+    std::vector<std::thread *> threads;
+
+    std::atomic_int rowsRemaining = imageHeight;
+
+    for(int t = 0; t < threadCount; t++) {
+        std::thread *thread = new std::thread{[&,t]{
+            for(int j = imageHeight - 1 - t; j >= 0; j -= threadCount) {
+                for(int i = 0; i < imageWidth; i++) {
+
+                    vec3f &pixel = image[i + j * imageWidth];
+                    int &weight = imageWeight[i + j * imageWidth];
+
+                    for(int sampleIndex = 0; sampleIndex < sampleCount; sampleIndex++) {
+                        float u = (i + randomFloat()) / (imageWidth - 1);
+                        float v = (j + randomFloat()) / (imageHeight - 1);
+
+                        pixel += cast(cam.getRay(u, v), scene, maxBounceDepth);
+                        weight += 1;
+                    }
+                }
+                rowsRemaining --;
+            }
+        }};
+        threads.push_back(thread);
+    }
+
+    std::thread *thread = new std::thread{[&]{
+        do {
+            std::this_thread::sleep_for(std::chrono::milliseconds(1000));
+            std::cout << "\rScanlines remaining: " << rowsRemaining << "  " << std::flush;
+        } while(rowsRemaining > 0);
+    }};
+    threads.push_back(thread);
+
+    while(!threads.empty()) {
+        std::thread* thread = threads.back();
+        threads.pop_back();
+        thread->join();
+    }
+
+
+    for(int j = imageHeight - 1; j >= 0; j--) {
+        for(int i = 0; i < imageWidth; i++) {
+            vec3f &pixel = image[i + j * imageWidth];
+            int &weight = imageWeight[i + j * imageWidth];
+            pixel /= weight;
+            pixel.x = sqrtf(pixel.x);
+            pixel.y = sqrtf(pixel.y);
+            pixel.z = sqrtf(pixel.z);
+        }
+    }
+
+    FILE *fp = fopen("image.ppm", "wb");
+    fprintf(fp, "P6 %d %d 255\n", imageWidth, imageHeight);
+    for(int j = imageHeight - 1; j >= 0; j--) {
+        for(int i = 0; i < imageWidth; i++) {
+            vec3f &pixel = image[i + j * imageWidth];
+            writePixel(fp, pixel);
+        }
+    }
+    fclose(fp);
+
     std::cout << "\n";
 }
