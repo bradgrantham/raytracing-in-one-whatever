@@ -113,7 +113,10 @@ struct Diffuse : public Material
     {}
     virtual bool scatter(const ray& incident, const vec3f& p, const vec3f& n, vec3f& attenuation, vec3f& outgoingDirection) const
     {
-        outgoingDirection = randomInHemisphere(n);
+        outgoingDirection = n + randomUnitVec3f();
+        if (vec_dot(outgoingDirection, n) < 0.0f) {
+            outgoingDirection = -outgoingDirection;
+        }
         if(isNearZero(outgoingDirection)) {
             outgoingDirection = n;
         }
