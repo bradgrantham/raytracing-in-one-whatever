@@ -5,6 +5,7 @@
 #include <cstdint>
 #include <random>
 #include <cmath>
+#include <cstdint>
 
 #include "vectormath.h"
 
@@ -28,6 +29,16 @@ float randomFloat(float min, float max)
 {
     // Returns a random real in [min,max).
     return min + (max - min) * randomFloat();
+}
+
+vec3f randomInUnitDisk()
+{
+    while (true) {
+        vec3f p = vec3f(randomFloat(-1,1), randomFloat(-1,1), 0);
+        if (vec_length_sq(p) < 1) {
+            return p;
+        }
+    }
 }
 
 vec3f randomVec3f(float min, float max)
@@ -73,28 +84,34 @@ struct Camera
     vec3f horizontal;
     vec3f vertical;
     vec3f lowerLeft;
+    float lensRadius;
+    vec3f w, u, v;
 
     Camera(const vec3f& eye, const vec3f& target, const vec3f& up,
-        int aspectRatioNum, int aspectRatioDenom, float vfov, float focalLength)
+        int aspectRatioNum, int aspectRatioDenom, float vfov, float aperture,
+        float focusDistance)
     {
         float theta = vfov / 180.0f * M_PI; 
-        float h = tanf(theta/2);
-        float viewportHeight = 2.0 * h;
+        float h = tanf(theta / 2.0f);
+        float viewportHeight = 2.0f * h;
         float viewportWidth = viewportHeight * aspectRatioNum / aspectRatioDenom;
 
-        vec3f w = vec_normalize(eye - target);
-        vec3f u = vec_normalize(vec_cross(up, w));
-        vec3f v = vec_cross(w, u);
+        w = vec_normalize(eye - target);
+        u = vec_normalize(vec_cross(up, w));
+        v = vec_cross(w, u);
 
         origin = eye;
-        horizontal = viewportWidth * u;
-        vertical = viewportHeight * v;
-        lowerLeft = origin - horizontal / 2.0f - vertical / 2.0f - w;
+        horizontal = focusDistance * viewportWidth * u;
+        vertical = focusDistance * viewportHeight * v;
+        lowerLeft = origin - horizontal / 2.0f - vertical / 2.0f - focusDistance * w;
+        lensRadius = aperture / 2.0f;
     }
 
-    ray getRay(float u, float v) const
+    ray getRay(float u_, float v_) const
     {
-        return ray(origin, lowerLeft + u * horizontal + v * vertical - origin);
+        vec3f rd = lensRadius * randomInUnitDisk();
+        vec3f offset = u * rd.x + v * rd.y;
+        return ray(origin + offset, lowerLeft + u_ * horizontal + v_ * vertical - origin - offset);
     }
 };
 
@@ -344,11 +361,26 @@ vec3f cast(const ray& r, Hittable::Ptr thingie, int depth)
 
 int main(int argc, char **argv)
 {
+    if(false) {
+        uint8_t q[512 * 512];
+
+        std::fill(q, q + sizeof(q), 0);
+        for(int i = 0; i < 100000; i++) {
+            vec3f p = randomInUnitDisk();
+            int x = 256 + 255 * p.x;
+            int y = 256 + 255 * p.y;
+            q[x + y * 512] = 255;
+        }
+        FILE *fp = fopen("disk.pgm", "wb");
+        fprintf(fp, "P5 %d %d 255\n", 512, 512);
+        fwrite(q, sizeof(q), 1, fp);
+        fclose(fp);
+        exit(0);
+    }
     int maxBounceDepth = 50;
     int sampleCount = 100;
     int aspectRatioNum = 16;
     int aspectRatioDenom = 9;
-    auto focalLength = 1.0;
 
     int imageWidth = 512;
     int imageHeight = imageWidth * aspectRatioDenom / aspectRatioNum;
@@ -356,12 +388,18 @@ int main(int argc, char **argv)
     FILE *fp = fopen("image.ppm", "wb");
     fprintf(fp, "P6 %d %d 255\n", imageWidth, imageHeight);
 
-    Camera cam(vec3f(-2,2,1), vec3f(0,0,-1), vec3f(0,1,0), aspectRatioNum, aspectRatioDenom, 20, focalLength);
+    vec3f eye(3,3,2);
+    vec3f target(0,0,-1);
+    vec3f up(0,1,0);
+    float distToFocus = vec_length(eye - target);
+    float aperture = 2.0f;
+    Camera cam(eye, target, up, aspectRatioNum, aspectRatioDenom, 20, aperture, distToFocus);
 
     std::vector<Hittable::Ptr> shapes;
 
     auto lemonDiffuse = std::make_shared<Diffuse>(vec3f(.8, .8, 0));
     auto clayDiffuse = std::make_shared<Diffuse>(vec3f(.7, .3, .3));
+    auto navyDiffuse = std::make_shared<Diffuse>(vec3f(0.1, 0.2, 0.5));
     auto silverPolishedMetal = std::make_shared<Metal>(vec3f(0.8, 0.8, 0.8), 0.3f);
     auto goldRoughMetal = std::make_shared<Metal>(vec3f(0.8, 0.6, 0.2), 1.0f);
     auto glass = std::make_shared<Dielectric>(1.5f);
@@ -369,7 +407,7 @@ int main(int argc, char **argv)
 
     shapes.push_back(std::make_shared<Sphere>(vec3f(0, -100.5f, -1), 100.0f, lemonDiffuse));
 
-    shapes.push_back(std::make_shared<Sphere>(vec3f(0, 0, -1), 0.5, clayDiffuse));
+    shapes.push_back(std::make_shared<Sphere>(vec3f(0, 0, -1), 0.5, navyDiffuse));
     shapes.push_back(std::make_shared<Sphere>(vec3f(-1.0, 0.0, -1.0), 0.5, glass));
     shapes.push_back(std::make_shared<Sphere>(vec3f( 1.0, 0.0, -1.0), 0.5, goldRoughMetal));
 
@@ -381,8 +419,8 @@ int main(int argc, char **argv)
 
             vec3f color(0, 0, 0);
             for(int sampleIndex = 0; sampleIndex < sampleCount; sampleIndex++) {
-                float u = (i + randomFloat()) * 1.0f / (imageWidth - 1);
-                float v = (j + randomFloat()) * 1.0f / (imageHeight - 1);
+                float u = (i + randomFloat()) / (imageWidth - 1);
+                float v = (j + randomFloat()) / (imageHeight - 1);
 
                 vec3f sample = cast(cam.getRay(u, v), scene, maxBounceDepth);
                 color += sample;
