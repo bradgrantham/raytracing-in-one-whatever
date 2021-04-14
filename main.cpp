@@ -73,8 +73,11 @@ struct Camera
     vec3f vertical;
     vec3f lowerLeft;
 
-    Camera(int aspectRatioNum, int aspectRatioDenom, float viewportHeight, float focalLength)
+    Camera(int aspectRatioNum, int aspectRatioDenom, float vfov, float focalLength)
     {
+        float theta = vfov / 180.0f * M_PI; 
+        float h = tanf(theta/2);
+        float viewportHeight = 2.0 * h;
         float viewportWidth = viewportHeight * aspectRatioNum / aspectRatioDenom;
         horizontal = vec3f(viewportWidth, 0, 0);
         vertical = vec3f(0, viewportHeight, 0);
@@ -337,19 +340,7 @@ int main(int argc, char **argv)
     int sampleCount = 100;
     int aspectRatioNum = 16;
     int aspectRatioDenom = 9;
-    float viewportHeight = 2.0f;
     auto focalLength = 1.0;
-
-    if(false){
-        vec3f rando = vec3f(0, 0, 0);
-        for(int i = 0; i < 100000; i++) {
-            vec3f hemi = randomInHemisphere(vec3f(0, 1, 0));
-            rando = rando + hemi;
-        }
-        rando /= 100000;
-        rando.normalize();
-        printf("%f %f %f\n", rando.x, rando.y, rando.z);
-    }
 
     int imageWidth = 512;
     int imageHeight = imageWidth * aspectRatioDenom / aspectRatioNum;
@@ -357,8 +348,7 @@ int main(int argc, char **argv)
     FILE *fp = fopen("image.ppm", "wb");
     fprintf(fp, "P6 %d %d 255\n", imageWidth, imageHeight);
 
-
-    Camera cam(aspectRatioNum, aspectRatioDenom, viewportHeight, focalLength);
+    Camera cam(aspectRatioNum, aspectRatioDenom, 90, focalLength);
 
     std::vector<Hittable::Ptr> shapes;
 
