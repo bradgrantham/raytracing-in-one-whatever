@@ -13,17 +13,11 @@
 //--------------------------------------------------------------------------
 // Random number utility functions
 
-constexpr bool useStdRandom = true;
-
 float randomFloat()
 {
-    if(useStdRandom) {
-        static std::uniform_real_distribution<float> distribution(0.0f, 1.0f);
-        static std::mt19937 generator;
-        return distribution(generator);
-    } else {
-        return drand48();
-    }
+    static std::uniform_real_distribution<float> distribution(0.0f, 1.0f);
+    static std::mt19937 generator;
+    return distribution(generator);
 }
 
 float randomFloat(float min, float max)
@@ -92,7 +86,7 @@ struct Camera
         int aspectRatioNum, int aspectRatioDenom, float vfov, float aperture,
         float focusDistance)
     {
-        float theta = vfov / 180.0f * M_PI; 
+        float theta = vfov / 180.0f * 3.14159f; 
         float h = tanf(theta / 2.0f);
         float viewportHeight = 2.0f * h;
         float viewportWidth = viewportHeight * aspectRatioNum / aspectRatioDenom;
@@ -160,7 +154,7 @@ float reflectance(float cosine, float ref_idx)
     // Use Schlick's approximation for reflectance.
     auto r0 = (1-ref_idx) / (1+ref_idx);
     r0 = r0*r0;
-    return r0 + (1-r0)*pow((1 - cosine),5);
+    return r0 + (1-r0)*powf((1 - cosine),5);
 }
 
 struct Dielectric : public Material
@@ -365,44 +359,44 @@ Hittable::Ptr generateRandomScene()
     std::vector<Hittable::Ptr> shapes;
 
     auto ground_material = std::make_shared<Diffuse>(vec3f(0.5, 0.5, 0.5));
-    shapes.push_back(std::make_shared<Sphere>(vec3f(0,-1000,0), 1000, ground_material));
+    shapes.push_back(std::make_shared<Sphere>(vec3f(0.0f,-1000.0f,0.0f), 1000.0f, ground_material));
 
     for (int a = -11; a < 11; a++) {
         for (int b = -11; b < 11; b++) {
             auto choose_mat = randomFloat();
-            vec3f center(a + 0.9*randomFloat(), 0.2, b + 0.9*randomFloat());
+            vec3f center(a + 0.9f*randomFloat(), 0.2f, b + 0.9f*randomFloat());
 
-            if (vec_length(center - vec3f(4, 0.2, 0)) > 0.9) {
+            if (vec_length(center - vec3f(4, 0.2f, 0)) > 0.9f) {
                 std::shared_ptr<Material> sphere_material;
 
-                if (choose_mat < 0.8) {
+                if (choose_mat < 0.8f) {
                     // diffuse
                     auto albedo = randomVec3f() * randomVec3f();
                     sphere_material = std::make_shared<Diffuse>(albedo);
-                    shapes.push_back(std::make_shared<Sphere>(center, 0.2, sphere_material));
-                } else if (choose_mat < 0.95) {
+                    shapes.push_back(std::make_shared<Sphere>(center, 0.2f, sphere_material));
+                } else if (choose_mat < 0.95f) {
                     // metal
                     auto albedo = randomVec3f(0.5, 1);
                     auto fuzz = randomFloat(0, 0.5);
                     sphere_material = std::make_shared<Metal>(albedo, fuzz);
-                    shapes.push_back(std::make_shared<Sphere>(center, 0.2, sphere_material));
+                    shapes.push_back(std::make_shared<Sphere>(center, 0.2f, sphere_material));
                 } else {
                     // glass
-                    sphere_material = std::make_shared<Dielectric>(1.5);
-                    shapes.push_back(std::make_shared<Sphere>(center, 0.2, sphere_material));
+                    sphere_material = std::make_shared<Dielectric>(1.5f);
+                    shapes.push_back(std::make_shared<Sphere>(center, 0.2f, sphere_material));
                 }
             }
         }
     }
 
-    auto material1 = std::make_shared<Dielectric>(1.5);
-    shapes.push_back(std::make_shared<Sphere>(vec3f(0, 1, 0), 1.0, material1));
+    auto material1 = std::make_shared<Dielectric>(1.5f);
+    shapes.push_back(std::make_shared<Sphere>(vec3f(0, 1, 0), 1.0f, material1));
 
-    auto material2 = std::make_shared<Diffuse>(vec3f(0.4, 0.2, 0.1));
-    shapes.push_back(std::make_shared<Sphere>(vec3f(-4, 1, 0), 1.0, material2));
+    auto material2 = std::make_shared<Diffuse>(vec3f(0.4f, 0.2f, 0.1f));
+    shapes.push_back(std::make_shared<Sphere>(vec3f(-4, 1, 0), 1.0f, material2));
 
-    auto material3 = std::make_shared<Metal>(vec3f(0.7, 0.6, 0.5), 0.0);
-    shapes.push_back(std::make_shared<Sphere>(vec3f(4, 1, 0), 1.0, material3));
+    auto material3 = std::make_shared<Metal>(vec3f(0.7f, 0.6f, 0.5f), 0.0f);
+    shapes.push_back(std::make_shared<Sphere>(vec3f(4, 1, 0), 1.0f, material3));
 
     return std::make_shared<Group>(shapes);
 }
@@ -416,7 +410,7 @@ int main(int argc, char **argv)
     int imageWidth = 1200;
     int imageHeight = imageWidth * aspectRatioDenom / aspectRatioNum;
     vec3f *image = new vec3f[imageWidth * imageHeight];
-    int *imageWeight = new int[imageWidth * imageHeight];
+    float *imageWeight = new float[imageWidth * imageHeight];
     int threadCount = std::thread::hardware_concurrency();
 
     vec3f eye(13, 2, 3);
@@ -445,7 +439,7 @@ int main(int argc, char **argv)
                 for(int i = 0; i < imageWidth; i++) {
 
                     vec3f &pixel = image[i + j * imageWidth];
-                    int &weight = imageWeight[i + j * imageWidth];
+                    float &weight = imageWeight[i + j * imageWidth];
 
                     for(int sampleIndex = 0; sampleIndex < sampleCount; sampleIndex++) {
                         float u = (i + randomFloat()) / (imageWidth - 1);
@@ -479,7 +473,7 @@ int main(int argc, char **argv)
     for(int j = imageHeight - 1; j >= 0; j--) {
         for(int i = 0; i < imageWidth; i++) {
             vec3f &pixel = image[i + j * imageWidth];
-            int &weight = imageWeight[i + j * imageWidth];
+            float &weight = imageWeight[i + j * imageWidth];
             pixel /= weight;
             pixel.x = sqrtf(pixel.x);
             pixel.y = sqrtf(pixel.y);

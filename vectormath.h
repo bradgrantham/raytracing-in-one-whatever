@@ -352,7 +352,7 @@ struct vec3f
     float length() const {
 	float sum = 0;
 	for(int i = 0; i < 3; i++) sum += m_v[i] * m_v[i];
-	return (float)sqrtf((double)sum);
+	return (float)sqrtf(sum);
     }
 
     vec3f& normalize() {
@@ -486,7 +486,7 @@ struct vec4f
     float length() const {
 	float sum = 0;
 	for(int i = 0; i < 4; i++) sum += m_v[i] * m_v[i];
-	return (float)sqrtf((double)sum);
+	return (float)sqrtf(sum);
     }
 
     vec4f& normalize() {
