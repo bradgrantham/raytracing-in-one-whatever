@@ -7,6 +7,7 @@
 #include <cstdio>
 #include <cmath>
 #include <cstdint>
+#include <future>
 
 #include "vectormath.h"
 
@@ -411,7 +412,6 @@ int main(int argc, char **argv)
     int imageHeight = imageWidth * aspectRatioDenom / aspectRatioNum;
     vec3f *image = new vec3f[imageWidth * imageHeight];
     float *imageWeight = new float[imageWidth * imageHeight];
-    int threadCount = std::thread::hardware_concurrency();
 
     vec3f eye(13, 2, 3);
     vec3f target(0,0,0);
@@ -429,46 +429,38 @@ int main(int argc, char **argv)
         }
     }
 
-    std::vector<std::thread *> threads;
-
     std::atomic_int rowsRemaining = imageHeight;
 
-    for(int t = 0; t < threadCount; t++) {
-        std::thread *thread = new std::thread{[&,t]{
-            for(int j = imageHeight - 1 - t; j >= 0; j -= threadCount) {
-                for(int i = 0; i < imageWidth; i++) {
+    std::vector<std::future<void>> lines;
+    for(int j = 0; j < imageHeight; j++) {
+        auto f = [&,j]{
+            for(int i = 0; i < imageWidth; i++) {
 
-                    vec3f &pixel = image[i + j * imageWidth];
-                    float &weight = imageWeight[i + j * imageWidth];
+                vec3f &pixel = image[i + j * imageWidth];
+                float &weight = imageWeight[i + j * imageWidth];
 
-                    for(int sampleIndex = 0; sampleIndex < sampleCount; sampleIndex++) {
-                        float u = (i + randomFloat()) / (imageWidth - 1);
-                        float v = (j + randomFloat()) / (imageHeight - 1);
+                for(int sampleIndex = 0; sampleIndex < sampleCount; sampleIndex++) {
+                    float u = (i + randomFloat()) / (imageWidth - 1);
+                    float v = (j + randomFloat()) / (imageHeight - 1);
 
-                        pixel += cast(cam.getRay(u, v), scene, maxBounceDepth);
-                        weight += 1;
-                    }
+                    pixel += cast(cam.getRay(u, v), scene, maxBounceDepth);
+                    weight += 1;
                 }
-                rowsRemaining --;
             }
-        }};
-        threads.push_back(thread);
+            rowsRemaining --;
+        };
+        auto line = std::async(std::launch::async, f);
+        lines.push_back(std::move(line));
     }
 
-    std::thread *thread = new std::thread{[&]{
-        do {
-            std::this_thread::sleep_for(std::chrono::milliseconds(1000));
-            std::cout << "\rScanlines remaining: " << rowsRemaining << "  " << std::flush;
-        } while(rowsRemaining > 0);
-    }};
-    threads.push_back(thread);
+    do {
+        std::this_thread::sleep_for(std::chrono::milliseconds(500));
+        std::cout << "\rScanlines remaining: " << rowsRemaining << "  " << std::flush;
+    } while(rowsRemaining > 0);
 
-    while(!threads.empty()) {
-        std::thread* thread = threads.back();
-        threads.pop_back();
-        thread->join();
+    for(auto& l: lines) {
+        l.wait();
     }
-
 
     for(int j = imageHeight - 1; j >= 0; j--) {
         for(int i = 0; i < imageWidth; i++) {
