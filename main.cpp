@@ -332,25 +332,40 @@ void writePixel(FILE *fp, const vec3f& color)
  * Materials must NOT be deleted from a ShadeParams by any function
  * called from cast()
  */
-vec3f cast(const ray& r, Hittable::Ptr thingie, int depth)
+vec3f cast(const ray& eyeray, Hittable::Ptr thingie, int depth)
 {
-    if(depth < 0) {
-        return vec3f(0, 0, 0);
-    }
+    ray r = eyeray;
 
-    ShadeParams params;
-    bool hit = thingie->hit(r, 0.001f, FLT_MAX, &params);
-    if(hit) {
-        vec3f bounceColor;
-        vec3f bounce;
-        bool again = params.m->scatter(r, params.p, params.n, params.f, bounceColor, bounce);
-        if(again) {
-            return bounceColor * cast(ray(params.p, bounce), thingie, depth - 1);
+    vec3f attenuated(1, 1, 1);
+
+    bool done = false;
+    do {
+        if(depth < 0) {
+            attenuated = vec3f(0, 0, 0);
+            done = true;
         }
-        return vec3f(0, 0, 0);
-    }
 
-    return shadeBackground(r);
+        ShadeParams params;
+        bool hit = thingie->hit(r, 0.001f, FLT_MAX, &params);
+        if(!hit) {
+            attenuated *= shadeBackground(r);
+            done = true;
+        } else {
+            vec3f bounceColor;
+            vec3f bounce;
+            bool again = params.m->scatter(r, params.p, params.n, params.f, bounceColor, bounce);
+            if(again) {
+                attenuated *= bounceColor;
+                r = ray(params.p, bounce);
+                depth--;
+            } else {
+                attenuated = vec3f(0, 0, 0);
+                done = true;
+            }
+        }
+    } while(!done);
+
+    return attenuated;
 }
 
 //--------------------------------------------------------------------------
